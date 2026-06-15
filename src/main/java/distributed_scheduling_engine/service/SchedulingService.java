@@ -69,4 +69,14 @@ public class SchedulingService {
             lockManager.releaseLock(resourceId);
         }
     }
+
+    @Transactional
+    public void cancelSlot(java.util.UUID id) {
+        ScheduleSlot slot = repository.findById(id)
+                .orElseThrow(() -> new SlotUnavailableException("Booking slot not found with the given ID."));
+
+        slot.setStatus(SlotStatus.CANCELED);
+        repository.save(slot);
+        repository.delete(slot);
+    }
 }

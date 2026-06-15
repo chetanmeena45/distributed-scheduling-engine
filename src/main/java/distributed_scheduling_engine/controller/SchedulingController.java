@@ -8,10 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -26,5 +25,12 @@ public class SchedulingController {
         log.info("Received booking request for resource: {}", request.getResourceId());
         BookingResponseDTO response = schedulingService.bookSlot(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> cancelSlot(@PathVariable UUID id) {
+        log.info("Received cancellation request for slot ID: {}", id);
+        schedulingService.cancelSlot(id);
+        return ResponseEntity.noContent().build();
     }
 }
