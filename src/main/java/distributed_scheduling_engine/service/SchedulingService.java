@@ -5,6 +5,7 @@ import distributed_scheduling_engine.dto.BookingResponseDTO;
 import distributed_scheduling_engine.entity.ScheduleSlot;
 import distributed_scheduling_engine.entity.SlotStatus;
 import distributed_scheduling_engine.exception.SlotUnavailableException;
+import distributed_scheduling_engine.lock.MemoryLockManager;
 import distributed_scheduling_engine.repository.ScheduleSlotRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,42 +20,53 @@ import java.util.List;
 public class SchedulingService {
 
     private final ScheduleSlotRepository repository;
+    private final MemoryLockManager lockManager;
 
     @Transactional
     public BookingResponseDTO bookSlot(BookingRequestDTO request) {
-        log.info("Attempting to lock and book slot for resource: {}", request.getResourceId());
+        String resourceId = request.getResourceId();
+        log.info("Processing booking request for resource: {}", resourceId);
 
-        // 1. Acquire Pessimistic Lock on any overlapping slots
-        List<ScheduleSlot> overlappingSlots = repository.findOverlappingBookedSlotsWithLock(
-                request.getResourceId(),
-                request.getStartTime(),
-                request.getEndTime()
-        );
-
-        // 2. If the list is not empty, someone already has this slot
-        if (!overlappingSlots.isEmpty()) {
-            log.warn("Double booking attempt blocked for resource: {}", request.getResourceId());
-            throw new SlotUnavailableException("The requested time slot is already booked for this resource.");
+        // Stage 1: Try to acquire the ultra-fast In-Memory Lock
+        if (!lockManager.acquireLock(resourceId)) {
+            throw new SlotUnavailableException("The resource is currently busy. Please try again in a moment.");
         }
 
-        // 3. Safe to proceed. Create and save the new slot.
-        ScheduleSlot newSlot = ScheduleSlot.builder()
-                .resourceId(request.getResourceId())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .status(SlotStatus.BOOKED)
-                .build();
+        try {
+            // Stage 2: Perform the overlapping interval check with a database write lock
+            List<ScheduleSlot> overlappingSlots = repository.findOverlappingBookedSlotsWithLock(
+                    resourceId,
+                    request.getStartTime(),
+                    request.getEndTime()
+            );
 
-        ScheduleSlot savedSlot = repository.save(newSlot);
-        log.info("Successfully booked slot ID: {}", savedSlot.getId());
+            if (!overlappingSlots.isEmpty()) {
+                log.warn("Double booking attempt blocked in DB for resource: {}", resourceId);
+                throw new SlotUnavailableException("The requested time slot is already booked for this resource.");
+            }
 
-        // 4. Map to Response DTO
-        return BookingResponseDTO.builder()
-                .id(savedSlot.getId())
-                .resourceId(savedSlot.getResourceId())
-                .startTime(savedSlot.getStartTime())
-                .endTime(savedSlot.getEndTime())
-                .status(savedSlot.getStatus().name())
-                .build();
+            // Safe to insert into the database
+            ScheduleSlot newSlot = ScheduleSlot.builder()
+                    .resourceId(resourceId)
+                    .startTime(request.getStartTime())
+                    .endTime(request.getEndTime())
+                    .status(SlotStatus.BOOKED)
+                    .build();
+
+            ScheduleSlot savedSlot = repository.save(newSlot);
+            log.info("Successfully booked slot ID: {}", savedSlot.getId());
+
+            return BookingResponseDTO.builder()
+                    .id(savedSlot.getId())
+                    .resourceId(savedSlot.getResourceId())
+                    .startTime(savedSlot.getStartTime())
+                    .endTime(savedSlot.getEndTime())
+                    .status(savedSlot.getStatus().name())
+                    .build();
+
+        } finally {
+            // ALWAYS release the memory lock when done, whether the booking succeeds or fails!
+            lockManager.releaseLock(resourceId);
+        }
     }
 }
