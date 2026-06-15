@@ -10,5 +10,4 @@ public class DistributedSchedulingEngineApplication {
 		System.out.println("application started");
 		SpringApplication.run(DistributedSchedulingEngineApplication.class, args);
 	}
-
 }
