@@ -28,4 +28,5 @@ public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, UUID
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime
     );
+    List<ScheduleSlot> findByResourceId(String resourceId);
 }

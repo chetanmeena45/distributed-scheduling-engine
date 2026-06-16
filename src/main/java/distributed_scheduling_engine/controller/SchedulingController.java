@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -33,4 +34,11 @@ public class SchedulingController {
         schedulingService.cancelSlot(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{resourceId}")
+    public ResponseEntity<List<BookingResponseDTO>> getSchedules(@PathVariable String resourceId) {
+        log.info("Fetching active schedules for resource: {}", resourceId);
+        return ResponseEntity.ok(schedulingService.getSlotsByResource(resourceId));
+    }
+
 }

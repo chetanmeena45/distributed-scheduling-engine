@@ -79,4 +79,17 @@ public class SchedulingService {
         repository.save(slot);
         repository.delete(slot);
     }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponseDTO> getSlotsByResource(String resourceId) {
+        return repository.findByResourceId(resourceId).stream()
+                .map(slot -> BookingResponseDTO.builder()
+                        .id(slot.getId())
+                        .resourceId(slot.getResourceId())
+                        .startTime(slot.getStartTime())
+                        .endTime(slot.getEndTime())
+                        .status(slot.getStatus().name())
+                        .build())
+                .toList();
+    }
 }
