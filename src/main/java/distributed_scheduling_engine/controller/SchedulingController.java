@@ -17,6 +17,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/schedules")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:5173")
 public class SchedulingController {
 
     private final SchedulingService schedulingService;
